@@ -1,0 +1,116 @@
+database:
+  host: localhost
+  user: mimicuser
+  password: mimic
+  database: mimiciiiv13
+
+# all output from the analysis will be saved under {base_dir}/data
+base_dir: /Users/Aaron/git/MIMIC_HPO
+
+hp.obo.path: /Users/Aaron/git/human-phenotype-ontology/hp.obo
+
+analysis-prod:
+  # parameters for analyzing mutual information (and synergy) regarding a
+  # particular diagnosis
+  regarding_diagnosis:
+    # if true, diagnosis is considered present only if it is listed as primary
+    primary_diagnosis_only: True
+    # list diseases of interest. Use the first three digits (exceptions exist)
+    # leave blank to exhausively analyze all diseases
+    disease_of_interest:
+      - '428'
+      - '584'
+      - '038'
+      - '493'
+    # if disease_of_interest is left blank, diagnosis with above threshold
+    # counts is analyzed
+    diagnosis_threshold_min: 3000
+    # a textHpo is considered positive if it occurred in multiple
+    # radiology reports
+    textHpo_occurrance_min: 1
+    # a labHpo is considered positive if it occurred in multiple lab tests
+    labHpo_occurrance_min: 3
+    # textHpo occurred too rarely or too frequently are ignored from analysis
+    textHpo_threshold_min: 500
+    textHpo_threshold_max: 100000
+    # labHpo occurred too rarely or too frequently are ignored from analysis
+    labHpo_threshold_min: 1000
+    labHpo_threshold_max: 100000
+
+  # the parameters have the same function as stated above
+  regardless_of_diseases:
+    textHpo_occurrance_min: 1
+    labHpo_occurrance_min: 3
+
+    textHpo_threshold_min: 500
+    textHpo_threshold_max: 100000
+
+    labHpo_threshold_min: 1000
+    labHpo_threshold_max: 100000
+
+  # the parameters have the same function as stated above
+  synergy_tree:
+    primary_diagnosis_only: True
+
+    textHpo_occurrance_min: 1
+    labHpo_occurrance_min: 3
+
+    textHpo_threshold_min: 500
+    textHpo_threshold_max: 100000
+
+    labHpo_threshold_min: 1000
+    labHpo_threshold_max: 100000
+
+
+analysis-test:
+  regarding_diagnosis:
+    # if true, diagnosis is considered present only if it is listed as primary
+    primary_diagnosis_only: True
+    # list diseases of interest. Use the first three digits (exceptions exist)
+    # leave blank to exhausively analyze all diseases
+    disease_of_interest:
+      - '428'
+      - '584'
+      - '038'
+      - '493'
+    # if disease_of_interest is left blank, diagnosis with above threshold
+    # counts is analyzed
+    diagnosis_threshold_min: 5
+    # a textHpo is considered positive if it occurred in multiple
+    # radiology reports
+    textHpo_occurrance_min: 1
+    # a labHpo is considered positive if it occurred in multiple lab tests
+    labHpo_occurrance_min: 3
+    # textHpo occurred too rarely or too frequently are ignored from analysis
+    textHpo_threshold_min: 7
+    textHpo_threshold_max: 100
+    # labHpo occurred too rarely or too frequently are ignored from analysis
+    labHpo_threshold_min: 7
+    labHpo_threshold_max: 100
+
+  regardless_of_diseases:
+    textHpo_occurrance_min: 1
+    labHpo_occurrance_min: 3
+
+    textHpo_threshold_min: 45
+    textHpo_threshold_max: 65
+
+    labHpo_threshold_min: 75
+    labHpo_threshold_max: 85
+
+  synergy_tree:
+    primary_diagnosis_only: True
+
+    textHpo_occurrance_min: 1
+    labHpo_occurrance_min: 3
+
+    textHpo_threshold_min: 7
+    textHpo_threshold_max: 7
+
+    labHpo_threshold_min: 8
+    labHpo_threshold_max: 8
+
+
+
+
+
