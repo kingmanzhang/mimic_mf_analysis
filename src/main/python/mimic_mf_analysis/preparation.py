@@ -1,4 +1,4 @@
-from . import mydb
+from mimic_mf_analysis import mydb
 
 cursor = mydb.cursor(buffered=True)
 
