@@ -8,6 +8,7 @@ from mutual_information.mf import MutualInfoXYz
 from mutual_information.synergy_tree import SynergyTree
 import pathlib
 import yaml
+from os.path import expanduser
 
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,38 @@ def parse_yaml(analysis_config_yaml_path):
 @click.command()
 @click.option("--analysis_config_yaml_path", help="analysis configuration file")
 @click.option("--debug", default=False, help="run in debug mode")
-def mutual_info(analysis_config_yaml_path, debug):
+@click.option("--out", help="output directory")
+def regardless_diagnosis(analysis_config_yaml_path, debug, out):
+
+    debug = True
+    analysis.initTables(debug=debug)
+    analysis.rankHpoFromText('', hpo_min_occurrence_per_encounter=1)
+    analysis.rankHpoFromLab('', hpo_min_occurrence_per_encounter=3)
+
+    batch_size = 11
+    textHpo_threshold_min = 45
+    textHpo_threshold_max = 65
+    labHpo_threshold_min = 75
+    labHpo_threshold_max = 85
+    textHpo_occurrance_min = 1
+    labHpo_occurrance_min = 3
+
+    summary_rad_lab, summary_rad_rad, summary_lab_lab = analysis.summary_textHpo_labHpo(batch_size, textHpo_occurrance_min,
+                                                                               labHpo_occurrance_min,
+                                                                               textHpo_threshold_min,
+                                                                               textHpo_threshold_max,
+                                                                               labHpo_threshold_min,
+                                                                               labHpo_threshold_max)
+
+    print(summary_rad_lab.m.shape)
+    print(summary_rad_rad.m.shape)
+    print(summary_lab_lab.m.shape)
+
+@click.command()
+@click.option("--analysis_config_yaml_path", help="analysis configuration file")
+@click.option("--debug", default=False, help="run in debug mode")
+@click.option("--out", help="output directory")
+def regarding_diagnosis(analysis_config_yaml_path, debug, out):
     # how to run this
     analysis_config = parse_yaml(analysis_config_yaml_path=analysis_config_yaml_path)
 
@@ -61,6 +93,10 @@ def mutual_info(analysis_config_yaml_path, debug):
     print(summaries_diag_textHpo_labHpo.get('038'))
     mf_XYz = MutualInfoXYz(summaries_diag_textHpo_labHpo.get('038'))
     print(mf_XYz.mutual_info_Xz())
+    out = pathlib.Path().home() if out is None else pathlib.Path(out)
+    print('to serialize output')
+
+
 
 
 @click.command()
@@ -121,7 +157,8 @@ def estimate():
     print("doing estimation")
 
 
-cli.add_command(mutual_info)
+cli.add_command(regardless_diagnosis)
+cli.add_command(regarding_diagnosis)
 cli.add_command(build_synergy_tree)
 cli.add_command(simulate)
 cli.add_command(estimate)

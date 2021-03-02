@@ -366,3 +366,105 @@ def precompute_mf_dict(var_ids):
     pbar.close()
 
     return mf_dict, summary_dict
+
+
+#############################################
+# mutual information regardless of diagnosis
+#############################################
+
+
+def batch_query_lab_text(start_index, end_index, textHpo_occurrance_min, labHpo_occurrance_min, textHpo_min,
+                         textHpo_max, labHpo_min, labHpo_max):
+    textHpo_flat = pd.read_sql_query('''
+        WITH encounters AS (
+                SELECT *
+                FROM JAX_encounterOfInterest
+                WHERE ROW_ID BETWEEN {} AND {}),
+            phenotypes AS (
+                SELECT MAP_TO
+                FROM JAX_textHpoFrequencyRank
+                WHERE N BETWEEN {} AND {}
+            ), 
+            temp AS (
+                SELECT * 
+                FROM encounters 
+                JOIN phenotypes)
+
+            SELECT L.SUBJECT_ID, L.HADM_ID, L.MAP_TO AS PHEN_TEXT, IF(R.dummy IS NULL, 0, 1) AS PHEN_TEXT_VALUE
+            FROM temp AS L
+            LEFT JOIN 
+                (SELECT * FROM JAX_textHpoProfile WHERE OCCURRANCE >= {}) AS R
+            ON L.SUBJECT_ID = R.SUBJECT_ID AND L.HADM_ID = R.HADM_ID AND L.MAP_TO = R.MAP_TO
+        '''.format(start_index, end_index, textHpo_min, textHpo_max, textHpo_occurrance_min), mydb)
+
+    labHpo_flat = pd.read_sql_query('''
+        WITH encounters AS (
+                SELECT *
+                FROM JAX_encounterOfInterest
+                WHERE ROW_ID BETWEEN {} AND {}),
+            phenotypes AS (
+                SELECT MAP_TO
+                FROM JAX_labHpoFrequencyRank
+                WHERE N BETWEEN {} AND {}
+            ), 
+            temp AS (
+                SELECT * 
+                FROM encounters 
+                JOIN phenotypes)
+
+            SELECT L.SUBJECT_ID, L.HADM_ID, L.MAP_TO AS PHEN_LAB, IF(R.dummy IS NULL, 0, 1) AS PHEN_LAB_VALUE
+            FROM temp AS L
+            LEFT JOIN 
+                (SELECT * FROM JAX_labHpoProfile WHERE OCCURRANCE >= {}) AS R
+            ON L.SUBJECT_ID = R.SUBJECT_ID AND L.HADM_ID = R.HADM_ID AND L.MAP_TO = R.MAP_TO
+        '''.format(start_index, end_index, labHpo_min, labHpo_max, labHpo_occurrance_min), mydb)
+
+    return textHpo_flat, labHpo_flat
+
+
+def summary_textHpo_labHpo(batch_size, textHpo_occurrance_min, labHpo_occurrance_min, textHpo_threshold_min,
+                           textHpo_threshold_max, labHpo_threshold_min, labHpo_threshold_max):
+    textHpoOfInterest = pd.read_sql_query(
+        "SELECT * FROM JAX_textHpoFrequencyRank WHERE N BETWEEN {} AND {}".format(textHpo_threshold_min,
+                                                                                  textHpo_threshold_max),
+        mydb).MAP_TO.values
+    labHpoOfInterest = pd.read_sql_query(
+        "SELECT * FROM JAX_labHpoFrequencyRank WHERE N BETWEEN {} AND {}".format(labHpo_threshold_min,
+                                                                                 labHpo_threshold_max),
+        mydb).MAP_TO.values
+    M1 = len(textHpoOfInterest)
+    M2 = len(labHpoOfInterest)
+
+    summary_rad_lab = mf.SummaryXY(textHpoOfInterest, labHpoOfInterest)
+    summary_rad_rad = mf.SummaryXY(textHpoOfInterest, textHpoOfInterest)
+    summary_lab_lab = mf.SummaryXY(labHpoOfInterest, labHpoOfInterest)
+
+    ## find the start and end ROW_ID for patient*encounter
+
+    ADM_ID_START, ADM_ID_END = \
+    pd.read_sql_query('SELECT MIN(ROW_ID) AS min, MAX(ROW_ID) AS max FROM JAX_encounterOfInterest', mydb).iloc[0]
+    batch_N = ADM_ID_END - ADM_ID_START + 1
+    TOTAL_BATCH = math.ceil(batch_N / batch_size)  # total number of batches
+
+    print('total batches: ' + str(batch_N))
+    pbar = tqdm(total=TOTAL_BATCH)
+    for i in np.arange(TOTAL_BATCH):
+        start_index = i * batch_size + ADM_ID_START
+        if i < TOTAL_BATCH - 1:
+            end_index = start_index + batch_size - 1
+        else:
+            end_index = batch_N
+        actual_batch_size = end_index - start_index + 1
+        textHpo, labHpo = batch_query_lab_text(start_index, end_index, textHpo_occurrance_min, labHpo_occurrance_min,
+                                               textHpo_threshold_min, textHpo_threshold_max, labHpo_threshold_min,
+                                               labHpo_threshold_max)
+        textHpo_matrix = textHpo.PHEN_TEXT_VALUE.values.astype(int).reshape([actual_batch_size, M1], order='F')
+        labHpo_matrix = labHpo.PHEN_LAB_VALUE.values.astype(int).reshape([actual_batch_size, M2], order='F')
+        summary_rad_lab.add_batch(textHpo_matrix, labHpo_matrix)
+        summary_rad_rad.add_batch(textHpo_matrix, textHpo_matrix)
+        summary_lab_lab.add_batch(labHpo_matrix, labHpo_matrix)
+        pbar.update(1)
+
+    pbar.close()
+
+    return summary_rad_lab, summary_rad_rad, summary_lab_lab
