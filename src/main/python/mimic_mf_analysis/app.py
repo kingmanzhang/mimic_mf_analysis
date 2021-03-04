@@ -3,7 +3,6 @@ import pandas as pd
 from mimic_mf_analysis import mydb
 import mimic_mf_analysis.analysis as analysis
 import logging
-from mutual_information.mf import MutualInfoXYz
 from mutual_information.synergy_tree import SynergyTree
 import pathlib
 import yaml
@@ -29,7 +28,7 @@ def parse_yaml(analysis_config_yaml_path):
 
 @click.command()
 @click.option("--analysis_config_yaml_path", help="analysis configuration file")
-@click.option("--debug/--prod", default=True, help="run in debug mode")
+@click.option("--debug", is_flag=True, help="run in debug mode")
 @click.option("--out", help="output directory")
 def regardless_diagnosis(analysis_config_yaml_path, debug, out):
     """
@@ -45,7 +44,6 @@ def regardless_diagnosis(analysis_config_yaml_path, debug, out):
     else:
         analysis_params = analysis_config['analysis-prod']['regardless_of_diseases']
         logger.info("running in prod mode")
-
 
     textHpo_occurrance_min, labHpo_occurrance_min = analysis_params['textHpo_occurrance_min'], analysis_params[
         'labHpo_occurrance_min']
@@ -122,12 +120,18 @@ def regarding_diagnosis(analysis_config_yaml_path, debug, out):
 
     if out:
         out_dir = pathlib.Path(out)
-    print(summaries_diag_textHpo_labHpo)
-    print(summaries_diag_textHpo_labHpo.get('038'))
-    mf_XYz = MutualInfoXYz(summaries_diag_textHpo_labHpo.get('038'))
-    print(mf_XYz.mutual_info_Xz())
-    out = pathlib.Path().home() if out is None else pathlib.Path(out)
-    print('to serialize output')
+    else:
+        print("out directory not specified. default to mimic_analysis in home directory")
+        out_dir = pathlib.Path().home().joinpath('mimic_analysis')
+        if not out_dir.exists():
+            out_dir.mkdir()
+
+    with open(out_dir.joinpath("summaries_diag_rad_lab.obj"), 'wb') as f:
+        pickle.dump(summaries_diag_textHpo_labHpo, f, protocol=2)
+    with open(out_dir.joinpath("summaries_diag_rad_rad.obj"), 'wb') as f:
+        pickle.dump(summaries_diag_textHpo_textHpo, f, protocol=2)
+    with open(out_dir.joinpath("summaries_diag_lab_lab.obj"), 'wb') as f:
+        pickle.dump(summaries_diag_labHpo_labHpo, f, protocol=2)
 
 
 @click.command()
