@@ -1,14 +1,13 @@
 import click
 import pandas as pd
 from mimic_mf_analysis import mydb
-import mimic_mf_analysis.preparation as preparation
 import mimic_mf_analysis.analysis as analysis
 import logging
 from mutual_information.mf import MutualInfoXYz
 from mutual_information.synergy_tree import SynergyTree
 import pathlib
 import yaml
-from os.path import expanduser
+import pickle
 
 
 logger = logging.getLogger(__name__)
@@ -30,39 +29,70 @@ def parse_yaml(analysis_config_yaml_path):
 
 @click.command()
 @click.option("--analysis_config_yaml_path", help="analysis configuration file")
-@click.option("--debug", default=False, help="run in debug mode")
+@click.option("--debug/--prod", default=True, help="run in debug mode")
 @click.option("--out", help="output directory")
 def regardless_diagnosis(analysis_config_yaml_path, debug, out):
+    """
+    Generate the joint distribution of HPO pairs regardless of diseases.
+    Terms of HPO pairs can be 1) one from rad and one from lab 2) both from rad or 3) both from lab
+    """
+    # how to run this
+    analysis_config = parse_yaml(analysis_config_yaml_path=analysis_config_yaml_path)
 
-    debug = True
+    if debug:
+        analysis_params = analysis_config['analysis-test']['regardless_of_diseases']
+        logger.warning("running in debug mode")
+    else:
+        analysis_params = analysis_config['analysis-prod']['regardless_of_diseases']
+        logger.info("running in prod mode")
+
+
+    textHpo_occurrance_min, labHpo_occurrance_min = analysis_params['textHpo_occurrance_min'], analysis_params[
+        'labHpo_occurrance_min']
+    textHpo_threshold_min, textHpo_threshold_max = analysis_params['textHpo_threshold_min'], analysis_params[
+        'textHpo_threshold_max']
+    labHpo_threshold_min, labHpo_threshold_max = analysis_params['labHpo_threshold_min'], analysis_params[
+        'labHpo_threshold_max']
+
     analysis.initTables(debug=debug)
-    analysis.rankHpoFromText('', hpo_min_occurrence_per_encounter=1)
-    analysis.rankHpoFromLab('', hpo_min_occurrence_per_encounter=3)
+    analysis.rankHpoFromText('', hpo_min_occurrence_per_encounter=textHpo_occurrance_min)
+    analysis.rankHpoFromLab('', hpo_min_occurrence_per_encounter=labHpo_occurrance_min)
 
-    batch_size = 11
-    textHpo_threshold_min = 45
-    textHpo_threshold_max = 65
-    labHpo_threshold_min = 75
-    labHpo_threshold_max = 85
-    textHpo_occurrance_min = 1
-    labHpo_occurrance_min = 3
+    batch_size = 11 if debug else 100
 
-    summary_rad_lab, summary_rad_rad, summary_lab_lab = analysis.summary_textHpo_labHpo(batch_size, textHpo_occurrance_min,
+    summary_rad_lab, summary_rad_rad, summary_lab_lab = analysis.summary_textHpo_labHpo(batch_size,
+                                                                               textHpo_occurrance_min,
                                                                                labHpo_occurrance_min,
                                                                                textHpo_threshold_min,
                                                                                textHpo_threshold_max,
                                                                                labHpo_threshold_min,
                                                                                labHpo_threshold_max)
 
-    print(summary_rad_lab.m.shape)
-    print(summary_rad_rad.m.shape)
-    print(summary_lab_lab.m.shape)
+    if out:
+        out_dir = pathlib.Path(out)
+    else:
+        print("out directory not specified. default to mimic_analysis in home directory")
+        out_dir = pathlib.Path().home().joinpath('mimic_analysis')
+        if not out_dir.exists():
+            out_dir.mkdir()
+
+    with open(out_dir.joinpath("summary_rad_lab.obj"), 'wb') as f:
+        pickle.dump(summary_rad_lab, f, protocol=2)
+    with open(out_dir.joinpath("summary_rad_rad.obj"), 'wb') as f:
+        pickle.dump(summary_rad_rad, f, protocol=2)
+    with open(out_dir.joinpath("summary_lab_lab.obj"), 'wb') as f:
+        pickle.dump(summary_lab_lab, f, protocol=2)
+
 
 @click.command()
 @click.option("--analysis_config_yaml_path", help="analysis configuration file")
 @click.option("--debug", default=False, help="run in debug mode")
 @click.option("--out", help="output directory")
 def regarding_diagnosis(analysis_config_yaml_path, debug, out):
+    """
+    Count the joint distribution of HPO pairs conditioned on a disease.
+    Terms in the HPO pair could be 1) one from rad and one from lab, 2) both from rad or 3) both from lab.
+    """
     # how to run this
     analysis_config = parse_yaml(analysis_config_yaml_path=analysis_config_yaml_path)
 
@@ -70,7 +100,7 @@ def regarding_diagnosis(analysis_config_yaml_path, debug, out):
         analysis_params = analysis_config['analysis-test']['regarding_diagnosis']
         logger.warning("running in debug mode")
     else:
-        analysis_params = analysis_config['analysis-test']['regarding_diagnosis']
+        analysis_params = analysis_config['analysis-prod']['regarding_diagnosis']
         logger.info("running in prod mode")
 
     primary_diagnosis_only = analysis_params['primary_diagnosis_only']
@@ -89,14 +119,15 @@ def regarding_diagnosis(analysis_config_yaml_path, debug, out):
         primary_diagnosis_only, textHpo_occurrance_min, labHpo_occurrance_min, diagnosis_threshold_min,
         textHpo_threshold_min, textHpo_threshold_max, labHpo_threshold_min, labHpo_threshold_max, disease_of_interest,
         logger)
+
+    if out:
+        out_dir = pathlib.Path(out)
     print(summaries_diag_textHpo_labHpo)
     print(summaries_diag_textHpo_labHpo.get('038'))
     mf_XYz = MutualInfoXYz(summaries_diag_textHpo_labHpo.get('038'))
     print(mf_XYz.mutual_info_Xz())
     out = pathlib.Path().home() if out is None else pathlib.Path(out)
     print('to serialize output')
-
-
 
 
 @click.command()
@@ -149,7 +180,6 @@ def build_synergy_tree():
 @click.command()
 def simulate():
     print(pd.read_sql('select * from labevents limit 4', mydb))
-    preparation.encounterOfInterest(debug=True)
 
 
 @click.command()
