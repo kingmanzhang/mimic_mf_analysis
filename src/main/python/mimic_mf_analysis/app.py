@@ -1,5 +1,7 @@
 import click
 import pandas as pd
+from mutual_information.mf_random import MutualInfoRandomizer
+
 from mimic_mf_analysis import mydb
 import mimic_mf_analysis.analysis as analysis
 import logging
@@ -7,6 +9,8 @@ from mutual_information.synergy_tree import SynergyTree
 import pathlib
 import yaml
 import pickle
+import os
+import re
 
 
 logger = logging.getLogger(__name__)
@@ -182,8 +186,47 @@ def build_synergy_tree():
 
 
 @click.command()
-def simulate():
-    print(pd.read_sql('select * from labevents limit 4', mydb))
+@click.option("--joint_distributions_path", description="HPO pair * disease joint distributions (output from running previous command)")
+@click.option("--diseases_of_interest", description="specify diseases to run simulations for, separated by comma")
+@click.option("--out_dir", description="specify output directory")
+@click.option("--verbose", is_flag=True, description="print more log info in verbose mode")
+@click.option("--per_simulation", default=8, description="for every simulation, how many times to randomly sample")
+@click.option("--simulations", default=500, description="how many simulations")
+@click.option("--cpu", default=8, description="number of CPU to use")
+@click.option("--job_id", description="pass job id")
+def simulate(joint_distributions_path, diseases_of_interest, out_dir, verbose, per_simulation, simulations, cpu, job_id):
+    """
+    Provide the joint distributions of disease*HPO_pair, and run simulations
+    """
+    with open(joint_distributions_path, 'rb') as in_file:
+        joint_distributions = pickle.load(in_file)
+        logger.info('number of diseases to run simulations for {}'.format(len(joint_distributions)))
+
+    # make sure output directory exists, including intermediate directories
+    os.makedirs(out_dir, exist_ok=True)
+
+    if job_id is None:
+        job_suffix = ''
+    else:
+        job_suffix = '_' + str(job_id)
+
+    diseases_of_interest = re.split(',\\s*', diseases_of_interest)
+
+    # TODO: the following works as if disease_of_interest could be multiple diseases
+    for disease, joint_distribution in joint_distributions.items():
+        if diseases_of_interest is not None and disease not in diseases_of_interest:
+            continue
+        randmizer = MutualInfoRandomizer(joint_distribution)
+        if verbose:
+            print('start calculating p values for {}'.format(disease))
+        randmizer.simulate(per_simulation, simulations, cpu, job_id)
+
+        distribution_file_path = os.path.join(out_dir, disease + job_suffix + '_distribution.obj')
+        with open(distribution_file_path, 'wb') as f2:
+            pickle.dump(randmizer.empirical_distribution, file=f2, protocol=2)
+
+        if verbose:
+            print('saved current batch of simulations {} for {}'.format(job_id, disease))
 
 
 @click.command()
