@@ -88,7 +88,7 @@ def regardless_diagnosis(analysis_config_yaml_path, debug, out):
 
 @click.command()
 @click.option("--analysis_config_yaml_path", help="analysis configuration file")
-@click.option("--debug", default=False, help="run in debug mode")
+@click.option("--debug", is_flag=True, help="run in debug mode")
 @click.option("--out", help="output directory")
 def regarding_diagnosis(analysis_config_yaml_path, debug, out):
     """
@@ -131,6 +131,7 @@ def regarding_diagnosis(analysis_config_yaml_path, debug, out):
             out_dir.mkdir()
 
     with open(out_dir.joinpath("summaries_diag_rad_lab.obj"), 'wb') as f:
+        print("write summaries_diag_rad_lab.obj ")
         pickle.dump(summaries_diag_textHpo_labHpo, f, protocol=2)
     with open(out_dir.joinpath("summaries_diag_rad_rad.obj"), 'wb') as f:
         pickle.dump(summaries_diag_textHpo_textHpo, f, protocol=2)
@@ -186,24 +187,24 @@ def build_synergy_tree():
 
 
 @click.command()
-@click.option("--joint_distributions_path", description="HPO pair * disease joint distributions (output from running previous command)")
-@click.option("--diseases_of_interest", description="specify diseases to run simulations for, separated by comma")
-@click.option("--out_dir", description="specify output directory")
-@click.option("--verbose", is_flag=True, description="print more log info in verbose mode")
-@click.option("--per_simulation", default=8, description="for every simulation, how many times to randomly sample")
-@click.option("--simulations", default=500, description="how many simulations")
-@click.option("--cpu", default=8, description="number of CPU to use")
-@click.option("--job_id", description="pass job id")
+@click.option("--joint_distributions_path", help="HPO pair * disease joint distributions (output from running previous command)")
+@click.option("--diseases_of_interest", help="specify diseases to run simulations for, separated by comma")
+@click.option("--out_dir", help="specify output directory")
+@click.option("--verbose", is_flag=True, help="print more log info in verbose mode")
+@click.option("--per_simulation", default=8, help="for every simulation, how many times to randomly sample")
+@click.option("--simulations", default=500, help="how many simulations")
+@click.option("--cpu", default=8, help="number of CPU to use")
+@click.option("--job_id", default=1, help="pass job id")
 def simulate(joint_distributions_path, diseases_of_interest, out_dir, verbose, per_simulation, simulations, cpu, job_id):
     """
     Provide the joint distributions of disease*HPO_pair, and run simulations
     """
     with open(joint_distributions_path, 'rb') as in_file:
         joint_distributions = pickle.load(in_file)
-        logger.info('number of diseases to run simulations for {}'.format(len(joint_distributions)))
+        logger.info('number of diseases in input file for joint distributions {}'.format(len(joint_distributions)))
 
-    # make sure output directory exists, including intermediate directories
-    os.makedirs(out_dir, exist_ok=True)
+    if out_dir is None:
+        out_dir = pathlib.Path(joint_distributions_path).parent
 
     if job_id is None:
         job_suffix = ''
