@@ -12,6 +12,7 @@ import yaml
 import pickle
 import os
 import re
+import glob
 
 
 logger = logging.getLogger(__name__)
@@ -192,8 +193,8 @@ def build_synergy_tree():
 @click.option("--diseases_of_interest", help="specify diseases to run simulations for, separated by comma")
 @click.option("--out_dir", help="specify output directory")
 @click.option("--verbose", is_flag=True, help="print more log info in verbose mode")
-@click.option("--per_simulation", default=8, help="for every simulation, how many times to randomly sample")
-@click.option("--simulations", default=500, help="how many simulations")
+@click.option("--per_simulation", default=8, help="for every simulation, how many encounters to simulate (roughly equal to observed encounters)")
+@click.option("--simulations", default=500, help="how many simulations to repeat")
 @click.option("--cpu", default=8, help="number of CPU to use")
 @click.option("--job_id", default=1, help="pass job id")
 def simulate(joint_distributions_path, diseases_of_interest, out_dir, verbose, per_simulation, simulations, cpu, job_id):
@@ -234,7 +235,7 @@ def simulate(joint_distributions_path, diseases_of_interest, out_dir, verbose, p
 @click.command()
 @click.option("--joint_distributions_path", help="HPO pair * disease joint distributions (output from running previous command)")
 @click.option("--dist_path", help="directory path for simulation results")
-@click.option("--out_path", help="output directory path")
+@click.option("--out_path", help="output path, return a binary file of Python map")
 @click.option("--disease_of_interest", help="specify a disease name")
 def estimate(joint_distributions_path, dist_path, out_path, disease_of_interest):
     with open(joint_distributions_path, 'rb') as in_file:
@@ -262,16 +263,14 @@ def load_distribution(dir, disease_prefix):
     Collect individual distribution profiles
     """
     simulations = []
-    for i in np.arange(5000):
-        path = os.path.join(dir, disease_prefix + '_' + str(i) +
-                            '_distribution.obj')
-        if os.path.exists(path):
-            with open(path, 'rb') as f:
-                try:
-                    simulation = pickle.load(f)
-                    simulations.append(simulation)
-                except:
-                    pass
+    filename_pattern = f'{dir}/{disease_prefix}_*_distribution.obj'
+    for path in glob.glob(filename_pattern):
+        with open(path, 'rb') as f:
+            try:
+                simulation = pickle.load(f)
+                simulations.append(simulation)
+            except:
+                pass
 
     empirical_distributions = dict()
     empirical_distributions['mf_XY_omit_z'] = \
