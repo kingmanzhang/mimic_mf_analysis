@@ -1,4 +1,5 @@
 import click
+import numpy as np
 import pandas as pd
 from mutual_information.mf_random import MutualInfoRandomizer
 
@@ -231,8 +232,80 @@ def simulate(joint_distributions_path, diseases_of_interest, out_dir, verbose, p
 
 
 @click.command()
-def estimate():
-    print("doing estimation")
+@click.option("--joint_distributions_path", help="HPO pair * disease joint distributions (output from running previous command)")
+@click.option("--dist_path", help="directory path for simulation results")
+@click.option("--out_path", help="output directory path")
+@click.option("--disease_of_interest", help="specify a disease name")
+def estimate(joint_distributions_path, dist_path, out_path, disease_of_interest):
+    with open(joint_distributions_path, 'rb') as in_file:
+        joint_distributions = pickle.load(in_file)
+        logger.info('number of diseases in input file for joint distributions {}'.format(len(joint_distributions)))
+
+    for disease, summary_statistics in joint_distributions.items():
+        if disease_of_interest is not None and disease not in disease_of_interest:
+            continue
+        randmizer = MutualInfoRandomizer(summary_statistics)
+        empirical_distribution = load_distribution(dist_path, disease)
+        # serialize_empirical_distributions(empirical_distribution['synergy'],
+        #      os.path.join(out_path, disease +
+        #                   '_empirical_distribution_subset.obj'))
+        randmizer.empirical_distribution = empirical_distribution
+        p = randmizer.p_values()
+
+    with open(out_path, 'wb') as f:
+        pickle.dump(p, f, protocol=2)
+    return p
+
+
+def load_distribution(dir, disease_prefix):
+    """
+    Collect individual distribution profiles
+    """
+    simulations = []
+    for i in np.arange(5000):
+        path = os.path.join(dir, disease_prefix + '_' + str(i) +
+                            '_distribution.obj')
+        if os.path.exists(path):
+            with open(path, 'rb') as f:
+                try:
+                    simulation = pickle.load(f)
+                    simulations.append(simulation)
+                except:
+                    pass
+
+    empirical_distributions = dict()
+    empirical_distributions['mf_XY_omit_z'] = \
+        np.concatenate([res['mf_XY_omit_z'] for res in simulations], axis=-1)
+    empirical_distributions['mf_Xz'] = \
+        np.concatenate([res['mf_Xz'] for res in simulations], axis=-1)
+    empirical_distributions['mf_Yz'] = \
+        np.concatenate([res['mf_Yz'] for res in simulations], axis=-1)
+    empirical_distributions['mf_XY_z'] = \
+        np.concatenate([res['mf_XY_z'] for res in simulations], axis=-1)
+    empirical_distributions['mf_XY_given_z'] = \
+        np.concatenate([res['mf_XY_given_z'] for res in simulations], axis=-1)
+    empirical_distributions['synergy'] = \
+        np.concatenate([res['synergy'] for res in simulations], axis=-1)
+
+    return empirical_distributions
+
+
+def serialize_empirical_distributions(distribution, path):
+    M1 = distribution.shape[0]
+    M2 = distribution.shape[1]
+    N = distribution.shape[2]
+    sampling_1d_size = min([M1, M2, 5])
+    i_index = np.random.choice(np.arange(M1), sampling_1d_size, replace=False)
+    j_index = np.random.choice(np.arange(M2), sampling_1d_size, replace=False)
+    sampled_empirical_distributions = np.zeros([sampling_1d_size,
+                                                sampling_1d_size, N])
+    for i in np.arange(sampling_1d_size):
+        for j in np.arange(sampling_1d_size):
+            sampled_empirical_distributions[i, j, :] = \
+                distribution[i_index[i],j_index[j], :]
+
+    with open(path, 'wb') as f:
+        pickle.dump(sampled_empirical_distributions, file=f, protocol=2)
 
 
 cli.add_command(regardless_diagnosis)
