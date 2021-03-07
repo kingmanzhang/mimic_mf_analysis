@@ -190,14 +190,14 @@ def build_synergy_tree():
 
 @click.command()
 @click.option("--joint_distributions_path", help="HPO pair * disease joint distributions (output from running previous command)")
-@click.option("--diseases_of_interest", help="specify diseases to run simulations for, separated by comma")
+@click.option("--disease_of_interest", required=True, help="specify a disease to run simulations for")
 @click.option("--out_dir", help="specify output directory")
 @click.option("--verbose", is_flag=True, help="print more log info in verbose mode")
 @click.option("--per_simulation", default=8, help="for every simulation, how many encounters to simulate (roughly equal to observed encounters)")
 @click.option("--simulations", default=500, help="how many simulations to repeat")
 @click.option("--cpu", default=8, help="number of CPU to use")
 @click.option("--job_id", default=1, help="pass job id")
-def simulate(joint_distributions_path, diseases_of_interest, out_dir, verbose, per_simulation, simulations, cpu, job_id):
+def simulate(joint_distributions_path, disease_of_interest, out_dir, verbose, per_simulation, simulations, cpu, job_id):
     """
     Provide the joint distributions of disease*HPO_pair, and run simulations
     """
@@ -213,23 +213,21 @@ def simulate(joint_distributions_path, diseases_of_interest, out_dir, verbose, p
     else:
         job_suffix = '_' + str(job_id)
 
-    diseases_of_interest = re.split(',\\s*', diseases_of_interest)
-
-    # TODO: the following works as if disease_of_interest could be multiple diseases
-    for disease, joint_distribution in joint_distributions.items():
-        if diseases_of_interest is not None and disease not in diseases_of_interest:
-            continue
+    joint_distribution = joint_distributions.get(disease_of_interest)
+    if joint_distribution is None:
+        raise RuntimeError("specified disease not included in the joint_distribution file. exit without simulation.")
+    else:
         randmizer = MutualInfoRandomizer(joint_distribution)
         if verbose:
-            print('start calculating p values for {}'.format(disease))
+            print('start calculating p values for {}'.format(disease_of_interest))
         randmizer.simulate(per_simulation, simulations, cpu, job_id)
 
-        distribution_file_path = os.path.join(out_dir, disease + job_suffix + '_distribution.obj')
+        distribution_file_path = os.path.join(out_dir, disease_of_interest + job_suffix + '_distribution.obj')
         with open(distribution_file_path, 'wb') as f2:
             pickle.dump(randmizer.empirical_distribution, file=f2, protocol=2)
 
         if verbose:
-            print('saved current batch of simulations {} for {}'.format(job_id, disease))
+            print('saved current batch of simulations {} for {}'.format(job_id, disease_of_interest))
 
 
 @click.command()
