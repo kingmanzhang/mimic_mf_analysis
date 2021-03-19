@@ -50,6 +50,7 @@ analysis-prod:
 
   # the parameters have the same function as stated above
   synergy_tree:
+    disease_of_interest: '038'
     primary_diagnosis_only: True
 
     textHpo_occurrance_min: 1
@@ -99,6 +100,7 @@ analysis-test:
     labHpo_threshold_max: 85
 
   synergy_tree:
+    disease_of_interest: '038'
     primary_diagnosis_only: True
 
     textHpo_occurrance_min: 1

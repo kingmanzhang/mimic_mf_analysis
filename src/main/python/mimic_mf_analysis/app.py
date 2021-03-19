@@ -11,7 +11,6 @@ import pathlib
 import yaml
 import pickle
 import os
-import re
 import glob
 
 
@@ -142,17 +141,32 @@ def regarding_diagnosis(analysis_config_yaml_path, debug, out):
 
 
 @click.command()
-def build_synergy_tree():
-    diagnosis = '038'
-    textHpo_occurrance_min = 1
-    labHpo_occurrance_min = 3
-    textHpo_threshold_min = 7
-    textHpo_threshold_max = 7
-    labHpo_threshold_min = 8
-    labHpo_threshold_max = 8
-    primary_diagnosis_only = True
+@click.option("--analysis_config_yaml_path", help="analysis configuration file")
+@click.option("--debug", is_flag=True, help="run in debug mode")
+@click.option("--out", help="output directory")
+def build_synergy_tree(analysis_config_yaml_path, debug, out):
+    # how to run this
+    analysis_config = parse_yaml(analysis_config_yaml_path=analysis_config_yaml_path)
 
-    analysis.initTables(debug=True)
+    if debug:
+        analysis_params = analysis_config['analysis-test']['synergy_tree']
+        logger.warning("running in debug mode")
+    else:
+        analysis_params = analysis_config['analysis-prod']['synergy_tree']
+        logger.info("running in prod mode")
+
+    diagnosis = analysis_params['disease_of_interest']
+
+    textHpo_occurrance_min, labHpo_occurrance_min = analysis_params['textHpo_occurrance_min'], analysis_params[
+        'labHpo_occurrance_min']
+    textHpo_threshold_min, textHpo_threshold_max = analysis_params['textHpo_threshold_min'], analysis_params[
+        'textHpo_threshold_max']
+    labHpo_threshold_min, labHpo_threshold_max = analysis_params['labHpo_threshold_min'], analysis_params[
+        'labHpo_threshold_max']
+
+    primary_diagnosis_only = analysis_params['primary_diagnosis_only']
+
+    analysis.initTables(debug=debug)
 
     analysis.rankHpoFromText(diagnosis, textHpo_occurrance_min)
     analysis.rankHpoFromLab(diagnosis, labHpo_occurrance_min)
@@ -167,6 +181,7 @@ def build_synergy_tree():
                                                                                  labHpo_threshold_max),
         mydb).MAP_TO.values
     # manually trim phenotypes TODO: further filter them
+    # there is probably not a good way to automate this
     print(labHpoOfInterest)
     print(textHpoOfInterest)
     textHpoOfInterest = ['HP:0001877', 'HP:0020058', 'HP:0010927', 'HP:0001871', 'HP:0010929']
