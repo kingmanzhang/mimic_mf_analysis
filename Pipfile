@@ -14,6 +14,8 @@ click = ">7.0"
 mysql-connector-python = ">8.0.5"
 obonetx = "*"
 pyyaml = "*"
+python-louvain = "*"
+matplotlib = "*"
 
 [requires]
 python_version = "3.7"
